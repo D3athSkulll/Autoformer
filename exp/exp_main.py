@@ -6,7 +6,7 @@ logging.basicConfig(format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)
 from data_provider.data_factory import data_provider
 from exp.exp_basic import Exp_Basic
 from models import Informer, Autoformer, Transformer, Reformer
-from utils.tools import EarlyStopping, adjust_learning_rate, visual
+from utils.tools import EarlyStopping, adjust_learning_rate, visual, save_learning_curve
 from utils.metrics import metric
 
 import numpy as np
@@ -115,6 +115,7 @@ class Exp_Main(Exp_Basic):
 
         model_optim = self._select_optimizer()
         criterion = self._select_criterion()
+        history = {'epoch': [], 'train_loss': [], 'vali_loss': []}
 
         if self.args.use_amp:
             scaler = torch.cuda.amp.GradScaler()
@@ -158,10 +159,15 @@ class Exp_Main(Exp_Basic):
             print("Epoch: {} cost time: {}".format(epoch + 1, time.time() - epoch_time))
             train_loss = np.average(train_loss)
             vali_loss = self.vali(vali_data, vali_loader, criterion)
-            test_loss = self.vali(test_data, test_loader, criterion)
+            
+            history['epoch'].append(epoch + 1)
+            history['train_loss'].append(float(train_loss))
+            history['vali_loss'].append(float(vali_loss))
 
-            print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} Test Loss: {4:.7f}".format(
-                epoch + 1, train_steps, train_loss, vali_loss, test_loss))
+            print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f}".format(
+                epoch + 1, train_steps, train_loss, vali_loss))
+            if self.args.save_learning_curve:
+                save_learning_curve(history, os.path.join(path, 'learning_curve.png'))
             early_stopping(vali_loss, self.model, path)
             if early_stopping.early_stop:
                 print("Early stopping")
